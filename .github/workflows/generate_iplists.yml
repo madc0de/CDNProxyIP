@@ -1,0 +1,40 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Generate IP Lists
+
+# Controls when the workflow will run
+on:
+  schedule:
+    # Runs once a day at midnight
+    - cron: '0 0 * * *'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  generate:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+
+      - name: Get BunnyCDN IP List
+        run: |
+          echo "# CloudFlare IP Ranges" > $GITHUB_WORKSPACE/iplists/bunnycdn.ips
+          echo "# Generated at $(date)" >> $GITHUB_WORKSPACE/iplists/bunnycdn.ips
+          echo "" >> $GITHUB_WORKSPACE/iplists/bunnycdn.ips
+          echo "#IPv4" >> $GITHUB_WORKSPACE/iplists/bunnycdn.ips
+          curl -s https://api.bunny.net/system/edgeserverlist/plain | tr -d "[:blank:]" | awk '{ print "set_real_ip_from " $0 ";" }' >> $GITHUB_WORKSPACE/iplists/bunnycdn.ips
+          echo "" >> $GITHUB_WORKSPACE/iplists/bunnycdn.ips
+          echo "#IPv6" >> $GITHUB_WORKSPACE/iplists/bunnycdn.ips
+          curl -s https://api.bunny.net/system/edgeserverlist/ipv6 | jq -r '.[] | select( . != null )' | tr -d "[:blank:]" | awk '{ print "set_real_ip_from " $0 ";" }' >> $GITHUB_WORKSPACE/iplists/bunnycdn.ips
+      - name: Commit & push updated IP-Lists into this Repo
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .
+          git diff-index --quiet HEAD || git commit -m "Daily auto update of the IP-Lists" && git push
